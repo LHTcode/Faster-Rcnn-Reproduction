@@ -10,22 +10,26 @@ class myDataSet(Dataset):
             4. object_name          -->list
         """
         self.transform = transform
-        self.target = {'picIndex':None,'picSize':None,'bndboxSize':None,'objectName':None,}
+        self.targets = {'picIndex':None,'picSize':None,'bndboxSize':None,'objectName':None,}
         super(myDataSet,self).__init__()
         """training file need to put on the same path with VOCdevkit"""
-        VOCdevkit_path = os.path.join(os.path.abspath(os.getcwd()), 'VOCdevkit','VOC2007')
-        assert os.path.exists(VOCdevkit_path) , "DataSet path is wrong.Please put the VOCdataSet on the same posision with your train.py!"
+        self.VOCdevkit_path = os.path.join(os.path.abspath(os.getcwd()), 'VOCdevkit','VOC2007')
+        self.img_path = os.path.join(self.VOCdevkit_path, 'JPEGImages')
+        assert os.path.exists(self.img_path), "Image Path No Found"
+        self.images_path_list = os.listdir(self.img_path)
+        assert os.path.exists(self.VOCdevkit_path) , "DataSet path is wrong.Please put the VOCdataSet on the same posision with your train.py!"
+
 
         picture_index = []
         picture_size = []
         bndbox_size = []
         object_name = []
-        path_list = os.listdir(os.path.join(VOCdevkit_path,'Annotations'))
+        path_list = os.listdir(os.path.join(self.VOCdevkit_path,'Annotations'))
         """collect picture index"""
         for img_xml in path_list:                           #delete the file extend
             picture_index.append(img_xml.split('.xml')[0])
         for picture_name in path_list:
-            with open(os.path.join(VOCdevkit_path,'Annotations',picture_name),'rb') as f:
+            with open(os.path.join(self.VOCdevkit_path,'Annotations',picture_name),'rb') as f:
                 """collect picture size"""
                 tree = ET.parse(f)
                 root = tree.getroot()
@@ -45,8 +49,31 @@ class myDataSet(Dataset):
                     """object class name"""
                     object_name.append(object.findtext('name'))
         assert len(object_name) == len(bndbox_size)
-        self.target['picIndex'] = picture_index
-        self.target['picSize'] = picture_size
-        self.target['bndboxSize'] = bndbox_size
-        self.target['objectName'] = object_name
-        def __getattr__(self,):
+        self.targets['picIndex'] = picture_index #---> (N,）
+        self.targets['picSize'] = picture_size   #---> (N,3）
+        self.targets['bndboxSize'] = bndbox_size #---> (N,4）
+        self.targets['objectName'] = object_name #---> (N,）
+
+    def __getitem__(self,index):
+        img_path = os.path.join(self.img_path,self.images_path_list[index])
+        img = Image.open(img_path,'r')
+        target = {'picIndex':None,'picSize':None,'bndboxSize':None,'objectName':None,}
+        # print([self.targets['picIndex'][index]])
+        picture_index = torch.tensor([index])
+        picture_size = torch.tensor(self.targets['picSize'][index])
+        bndbox_size = torch.tensor(self.targets['bndboxSize'])
+        object_name = torch.tensor([self.targets['objectName']])
+
+        target['picIndex'] = picture_index  # ---> (N,）
+        target['picSize'] = picture_size  # ---> (N,3）
+        target['bndboxSize'] = bndbox_size  # ---> (N,4）
+        target['objectName'] = object_name  # ---> (N,）
+
+        if self.transform != None:
+            self.transform(target)
+            self.transform(img)
+        return img , target
+
+
+    def __len__(self):
+        return len(self.targets['objectName'])
