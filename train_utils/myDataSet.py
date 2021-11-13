@@ -1,5 +1,3 @@
-import enum
-
 from train_utils import *
 
 class myDataSet(Dataset):
@@ -37,6 +35,8 @@ class myDataSet(Dataset):
                 root = tree.getroot()       #getroot() method can load the root label
                 single_picture_size = []
                 single_bndbox_size = []
+                single_pic_bndbox_size = []
+                single_pic_object_name = []
                 for size in root.find('size'):
                     single_picture_size.append(float(size.text))      #picture format is 'WHC',but we need format is 'CHW' for conv
                 single_picture_size[0] , single_picture_size[2] = single_picture_size[2] , single_picture_size[0]   #'WHC' -> 'CHW'
@@ -46,49 +46,66 @@ class myDataSet(Dataset):
                     for bndbox in object.findall('bndbox'):
                         for size in bndbox:
                             single_bndbox_size.append(float(size.text))       #xmin,ymin,xmax,ymax
-                        self.bndbox_size.append(single_bndbox_size)
+                        single_pic_bndbox_size.append(single_bndbox_size)
                         single_bndbox_size = []
                     """object class name"""
-                    self.object_name.append(object.findtext('name'))
-        assert len(self.object_name) == len(self.bndbox_size)
+                    single_pic_object_name.append(object.findtext('name'))
+            self.object_name.append(single_pic_object_name)
+            self.bndbox_size.append([single_pic_bndbox_size])
+        assert len(self.object_name) == len(self.bndbox_size) , 'Len error'
 
-    def __getitem__(self,index):#index here means that choose one number in 0~len(self.target['bojectName'])
+    def __getitem__(self,index):# index here means that choose one number in 0~len(self.target['bojectName'])
+        index -= 1
         img_path = os.path.join(self.img_path,self.images_path_list[index])
         img = Image.open(img_path,'r')
         target = {'picIndex':None,'picSize':None,'bndboxSize':None,'objectName':None,}
-        print(self.object_name[index])
-        objectName = int(self.get_labels(self.object_name[index]))
+        objectName = self.get_labels(self.object_name[index])
         # use encoding method
         if (self.enconding_method == 'one_hot'):
-            objectName = self.one_hot_encoding(objectName-1)
+            objectName = self.one_hot_encoding(objectName)
+            objectName = torch.as_tensor(objectName)
+        elif (self.enconding_method == None):
+            objectName = self.enum_encoding(objectName)
 
-        target['picIndex'] = str(self.picture_index[index])  # ---> (N,）
-        target['picSize'] = torch.as_tensor(self.picture_size[index])  # ---> (N,3）
-        target['bndboxSize'] = torch.as_tensor(self.bndbox_size[index])  # ---> (N,4）
-        target['objectName'] = objectName  # ---> (N,）
-
+        target['picIndex'] = str(self.picture_index[index])
+        target['picSize'] = torch.as_tensor(self.picture_size[index])
+        target['bndboxSize'] = torch.as_tensor(self.bndbox_size[index])
+        target['objectName'] = objectName
 
         if self.transform != None:
             img = self.transform(img)
         return img , target
 
     def __len__(self):
-        return len(self.targets['objectName'])
-    def get_labels(self,label_name:str):
-        label = None
+        print(len(self.images_path_list))
+        return len(self.images_path_list)
+
+    def get_labels(self,label_name:list):
+        labels = []
         with open(os.path.join(os.getcwd(),'labels_encoding.xml'),'rb') as f:
             labels_xml = ET.parse(f)
             root = labels_xml.getroot()
-            label = root.find(label_name)
-        return label.text
+            for label in label_name:
+                label = root.find(label)
+                labels.append(label.text)
+        return labels
 
-    def one_hot_encoding(self,objectName:int):
-        labels_sequence = [0 for i in range(20)]
-        labels_sequence[objectName] = 1
-        return labels_sequence
+    def one_hot_encoding(self,objectName:list):
+        labels_sequence = [0 for _ in range(20)]
+        output = []
+        for object in objectName:
+            labels_sequence[int(object)-1] = 1
+            output.append(labels_sequence)
+            labels_sequence[int(object)-1] = 0
+        return output
+    def enum_encoding(self,objectName:list):
+        return objectName
+
 
     # customize dataloader collate_fn method
     @staticmethod
     def collate_fn(batch):          # staticmethod can accept parms without self or cls
-        print(batch)
+        # print(type(batch[0]))
+        # print(batch[0][1]['picSize'].size())
+
         return
