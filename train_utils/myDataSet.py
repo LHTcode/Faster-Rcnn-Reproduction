@@ -1,3 +1,5 @@
+import torch
+
 from train_utils import *
 
 class myDataSet(Dataset):
@@ -104,8 +106,5 @@ class myDataSet(Dataset):
 
     # customize dataloader collate_fn method
     @staticmethod
-    def collate_fn(batch):          # staticmethod can accept parms without self or cls
-        # print(type(batch[0]))
-        # print(batch[0][1]['picSize'].size())
-
-        return
+    def collate_fn(batch):          # static method can accept parms without self or cls
+        return  tuple(zip(*batch))  #return a tuple like (imgs,tagets)

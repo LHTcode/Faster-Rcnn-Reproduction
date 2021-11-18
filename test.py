@@ -6,7 +6,8 @@ dataset = myDataSet(transform=ToTensor(),enconding_method='one_hot')
 
 # img , targe = dataset[0]
 
-dataloader = DataLoader(dataset,batch_size=3,collate_fn=myDataSet.collate_fn)
+dataloader = DataLoader(dataset,batch_size=10,collate_fn=myDataSet.collate_fn)
 
-for data in dataloader:
-    test = data
+iter = dataloader.__iter__()
+imgs = iter.next()
+
